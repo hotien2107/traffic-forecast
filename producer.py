@@ -144,13 +144,11 @@ def pipeline():
             time.sleep(WAIT_SECONDS)
 
     except KeyboardInterrupt:
-        print("\nĐã nhận lệnh dừng từ người dùng.")
+        print("\n Dừng")
     finally:
-        print("Đang đóng các kết nối...")
         if kafka_producer:
             kafka_producer.close()
         driver.quit()
-        print("Đã đóng tất cả. Tạm biệt!")
 
 
 if __name__ == "__main__":
