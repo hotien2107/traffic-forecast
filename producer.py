@@ -12,6 +12,8 @@ from kafka import KafkaProducer
 import requests
 from PIL import Image
 import io
+import os
+import csv
 
 URL_MAP = "https://giaothong.hochiminhcity.gov.vn/expandcameraplayer/?camId=63ae7cfcbfd3d90017e8f422&camLocation=C%C3%A1ch%20M%E1%BA%A1ng%20Th%C3%A1ng%20T%C3%A1m%20%E2%80%93%20Ph%E1%BA%A1m%20V%C4%83n%20Hai&camMode=camera&videoUrl=https://d2zihajmogu5jn.cloudfront.net/bipbop-advanced/bipbop_16x9_variant.m3u8"
 CAM_ID = "63ae7cfcbfd3d90017e8f422"
@@ -19,6 +21,7 @@ TARGET_CLASS_NAME = f"camImg-{CAM_ID}"
 
 KAFKA_BROKER = 'localhost:9092'
 KAFKA_TOPIC = 'traffic_detection_topic'
+CSV_FILE_PATH = 'traffic_log.csv'
 
 YOLO_MODEL = YOLO('yolov8n.pt')
 VEHICLE_CLASSES = {2, 3, 5, 7}  # car, motorbike, bus, truck
@@ -30,6 +33,45 @@ VEHICLE_CLASSES_MAP = {
     5: 'bus',
     7: 'truck'
 }
+
+
+def calculate_traffic_status(vehicle_counts: dict) -> int:
+    weights = {'car': 1.0, 'motorbike': 0.4, 'bus': 2.5, 'truck': 2.5}
+    congestion_score = sum(vehicle_counts.get(k, 0) * weights.get(k, 0) for k in vehicle_counts)
+
+    if congestion_score < 5:
+        return 1
+    elif congestion_score < 10:
+        return 2
+    elif congestion_score < 15:
+        return 3
+    elif congestion_score < 20:
+        return 4
+    else:
+        return 5
+
+
+def save_data_to_csv(data_row: dict, file_path: str):
+    """
+    Lưu một dòng dữ liệu vào file CSV, tự động tạo header nếu file không tồn tại.
+    """
+    # Xử lý các giá trị lồng nhau để lưu vào CSV
+    flat_data = data_row.copy()
+    vehicle_details = flat_data.pop('vehicle_details', {})
+    flat_data.update(vehicle_details)
+
+    file_exists = os.path.isfile(file_path)
+    try:
+        with open(file_path, mode='a', newline='', encoding='utf-8') as f:
+            # Sắp xếp các trường để đảm bảo thứ tự cột nhất quán
+            fieldnames = sorted(flat_data.keys())
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(flat_data)
+        print(f"[{datetime.now():%H:%M:%S}] [CSV] Đã lưu dữ liệu vào {file_path}")
+    except Exception as e:
+        print(f"[{datetime.now():%H:%M:%S}] [CSV ERROR] Lỗi khi ghi file: {e}")
 
 
 def count_vehicles_from_url(image_url: str) -> dict | None:
@@ -128,17 +170,18 @@ def pipeline():
                 if counts_by_type is not None:
                     total_vehicles = sum(counts_by_type.values())
 
-                    print(f"[{datetime.now():%H:%M:%S}] [AI] Phát hiện tổng cộng {total_vehicles} phương tiện.")
-                    print(f"[{datetime.now():%H:%M:%S}] [AI] Chi tiết: {counts_by_type}")
+                    traffic_status = calculate_traffic_status(counts_by_type)
 
                     message_data = {
                         "timestamp_utc": datetime.utcnow().isoformat(),
-                        "camera_id": CAM_ID,
                         "location": "CMT8_PhamVanHai",
                         "total_vehicles": total_vehicles,
                         "vehicle_details": counts_by_type,
+                        "traffic_status": traffic_status,
                     }
                     send_data_to_kafka(kafka_producer, KAFKA_TOPIC, key=CAM_ID, data=message_data)
+
+                    save_data_to_csv(message_data, CSV_FILE_PATH)
 
             print(f"[{datetime.now():%H:%M:%S}] Chu trình hoàn tất. Chờ {WAIT_SECONDS} giây...")
             time.sleep(WAIT_SECONDS)
