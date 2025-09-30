@@ -181,7 +181,7 @@ def pipeline():
                     }
                     send_data_to_kafka(kafka_producer, KAFKA_TOPIC, key=CAM_ID, data=message_data)
 
-                    save_data_to_csv(message_data, CSV_FILE_PATH)
+                    # save_data_to_csv(message_data, CSV_FILE_PATH)
 
             print(f"[{datetime.now():%H:%M:%S}] Chu trình hoàn tất. Chờ {WAIT_SECONDS} giây...")
             time.sleep(WAIT_SECONDS)
