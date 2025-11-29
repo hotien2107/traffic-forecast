@@ -53,9 +53,8 @@ def calculate_traffic_status(vehicle_counts: dict) -> int:
 
 def save_data_to_csv(data_row: dict, file_path: str):
     """
-    Lưu một dòng dữ liệu vào file CSV, tự động tạo header nếu file không tồn tại.
+    Lưu một dòng dữ liệu vào file CSV
     """
-    # Xử lý các giá trị lồng nhau để lưu vào CSV
     flat_data = data_row.copy()
     vehicle_details = flat_data.pop('vehicle_details', {})
     flat_data.update(vehicle_details)
@@ -63,7 +62,6 @@ def save_data_to_csv(data_row: dict, file_path: str):
     file_exists = os.path.isfile(file_path)
     try:
         with open(file_path, mode='a', newline='', encoding='utf-8') as f:
-            # Sắp xếp các trường để đảm bảo thứ tự cột nhất quán
             fieldnames = sorted(flat_data.keys())
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
